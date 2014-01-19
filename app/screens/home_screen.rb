@@ -1,29 +1,52 @@
-class HomeScreen < PM::Screen
-  include HomeStyles
+class HomeScreen < PM::TableScreen
+  refreshable
 
-  title "Home"
+  title "ESPN Now"
+
+  def table_data
+    [{
+      cells: Array(@headlines)
+    }]
+  end
 
   def on_load
-    set_nav_bar_button :left, title: "Help", action: :help_tapped
-    set_nav_bar_button :right, title: "States", action: :states_tapped
+    on_refresh
   end
 
-  def will_appear
-    @view_setup ||= self.set_up_view
+  def on_refresh
+    ESPN.new.now do |response|
+      @headlines = response["feed"].map do |f|
+        {
+          title: f["headline"],
+          action: :tap_headline,
+          arguments: { links: f["links"] }
+        }
+      end
+      update_table_data
+      stop_refreshing
+    end
   end
 
-  def set_up_view
-    set_attributes self.view, :home_view_style # found in HomeStyles module
-    add UILabel.new, :label_view_style
-
-    true
+  def tap_headline(args={})
+    PM.logger.debug args[:links]
   end
 
-  def states_tapped
-    open StatesScreen
+  def extract_href(links)
+    while links.is_a?(Hash)
+      if links["href"]
+        links = links["href"]
+      else
+        links = links.values.first
+      end
+    end
+    links
   end
 
-  def help_tapped
-    open_modal HelpScreen.new(nav_bar: true)
+  def tap_headline(args={})
+    link = extract_href(args[:links])
+
+    if link.is_a?(String)
+      UIApplication.sharedApplication.openURL(NSURL.URLWithString(link))
+    end
   end
 end
